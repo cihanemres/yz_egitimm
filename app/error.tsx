@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
+import { useEffect } from 'react';
+import Link from 'next/link';
 
-export default function Error({
+export default function Hata({
   error,
   reset,
 }: {
@@ -14,16 +15,20 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="bg-white p-8 rounded-xl border border-red-100 shadow-sm text-center max-w-md">
-        <h2 className="text-2xl font-bold text-red-600 mb-2">Bir Hata Oluştu</h2>
-        <p className="text-slate-600 mb-6">{error.message || "Bilinmeyen bir hata meydana geldi."}</p>
-        <button
-          onClick={() => reset()}
-          className="bg-red-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
-        >
-          Tekrar Dene
-        </button>
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="kart w-full max-w-md text-center">
+        <h1 className="text-lg font-semibold text-slate-900">Bir şeyler ters gitti</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          {error.message || 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.'}
+        </p>
+        <div className="mt-5 flex justify-center gap-2">
+          <button onClick={reset} className="btn-birincil">
+            Tekrar Dene
+          </button>
+          <Link href="/" className="btn-ikincil">
+            Ana Sayfa
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -1,40 +1,87 @@
-import { prisma } from "@/utils/prisma";
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
-import ExamForm from "./ExamForm";
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
-export default async function TakeExamPage({ params }: { params: { id: string } }) {
-  const session = await auth();
-  
-  const exam = await prisma.exam.findUnique({
-    where: { id: params.id, isPublished: true },
-    include: { questions: { orderBy: { order: 'asc' } } }
+import { prisma } from '@/lib/prisma';
+import { ogrenciGerekli } from '@/lib/yetki';
+import TestFormu from './test-formu';
+
+export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { id: string } }) {
+  const test = await prisma.exam.findUnique({
+    where: { id: params.id },
+    select: { title: true },
+  });
+  return { title: test ? `${test.title} — SözlüAI` : 'Test — SözlüAI' };
+}
+
+export default async function TestCozmeSayfasi({ params }: { params: { id: string } }) {
+  await ogrenciGerekli();
+
+  const test = await prisma.exam.findUnique({
+    where: { id: params.id },
+    include: {
+      teacher: { select: { name: true } },
+      questions: { orderBy: { order: 'asc' } },
+    },
   });
 
-  if (!exam) redirect("/student");
+  if (!test) notFound();
 
-  // Check if already attempted
-  const existingAttempt = await prisma.attempt.findFirst({
-    where: { examId: exam.id, studentId: session?.user?.id }
-  });
+  // Öğrenci yalnızca yayınlanmış testleri çözebilir.
+  if (!test.isPublished) {
+    return (
+      <div className="kart mx-auto max-w-lg text-center">
+        <h1 className="text-lg font-semibold text-slate-900">Bu test yayında değil</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Öğretmenin bu testi henüz yayınlamamış ya da yayından kaldırmış olabilir.
+        </p>
+        <Link href="/student" className="btn-birincil mt-5">
+          Panele Dön
+        </Link>
+      </div>
+    );
+  }
 
-  if (existingAttempt && existingAttempt.completedAt) {
-    redirect(`/student/attempts/${existingAttempt.id}`);
+  if (test.questions.length === 0) {
+    return (
+      <div className="kart mx-auto max-w-lg text-center">
+        <h1 className="text-lg font-semibold text-slate-900">Bu testte henüz soru yok</h1>
+        <Link href="/student" className="btn-birincil mt-5">
+          Panele Dön
+        </Link>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-8 p-8 overflow-y-auto">
-      <div className="flex flex-col gap-4">
-        <h1 className="text-3xl font-bold text-slate-900 leading-tight">{exam.title}</h1>
-        {exam.description && <p className="text-slate-500 leading-relaxed">{exam.description}</p>}
-        <div>
-          <span className="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold tracking-wider uppercase">
-            Açık Uçlu Sınav
-          </span>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <Link href="/student" className="text-sm text-slate-500 hover:text-slate-700">
+          ← Panelim
+        </Link>
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">{test.title}</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {test.topic} · {test.gradeLevel} · {test.questions.length} soru · Öğretmen:{' '}
+          {test.teacher.name}
+        </p>
+        {test.description && <p className="mt-2 text-sm text-slate-600">{test.description}</p>}
       </div>
 
-      <ExamForm exam={exam} />
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Tüm soruları kendi cümlelerinle yanıtla. Yanıtların, öğretmenin belirlediği puanlama
+        rubriğine göre değerlendirilecek.
+      </div>
+
+      <TestFormu
+        examId={test.id}
+        sorular={test.questions.map((s) => ({
+          id: s.id,
+          order: s.order,
+          text: s.text,
+          maxScore: s.maxScore,
+        }))}
+      />
     </div>
   );
 }

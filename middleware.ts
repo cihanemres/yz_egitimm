@@ -1,37 +1,48 @@
-import { auth } from "@/auth";
-import { NextResponse } from "next/server";
+import NextAuth from 'next-auth';
+import { NextResponse } from 'next/server';
+
+import { authConfig } from '@/auth.config';
+
+const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isAuthPage = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/register');
-  const isTeacherRoute = req.nextUrl.pathname.startsWith('/teacher');
-  const isStudentRoute = req.nextUrl.pathname.startsWith('/student');
+  const { nextUrl } = req;
+  const pathname = nextUrl.pathname;
+  const session = req.auth;
+  const role = session?.user?.role;
 
-  if (isAuthPage) {
-    if (isLoggedIn) {
-      if (req.auth?.user?.role === "TEACHER") return NextResponse.redirect(new URL('/teacher', req.nextUrl));
-      if (req.auth?.user?.role === "STUDENT") return NextResponse.redirect(new URL('/student', req.nextUrl));
-      return NextResponse.redirect(new URL('/', req.nextUrl));
-    }
-    return null;
+  const ogretmenRotasi = pathname.startsWith('/teacher');
+  const ogrenciRotasi = pathname.startsWith('/student');
+  const korumaliRota = ogretmenRotasi || ogrenciRotasi;
+
+  // Giriş yapmamış kullanıcı korumalı rotaya erişemez
+  if (korumaliRota && !session) {
+    const girisUrl = new URL('/login', nextUrl);
+    girisUrl.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(girisUrl);
   }
 
-  if (!isLoggedIn && (isTeacherRoute || isStudentRoute)) {
-    return NextResponse.redirect(new URL('/login', req.nextUrl));
+  // Sonuç sayfasını (/student/attempts/[id]) öğretmen de görebilir.
+  // Kayda erişim yetkisi ayrıca sayfa içinde tekrar denetlenir.
+  const sonucSayfasi = pathname.startsWith('/student/attempts/');
+
+  // Rol uyuşmazlığı → 403 sayfası
+  if (ogretmenRotasi && role !== 'TEACHER') {
+    return NextResponse.rewrite(new URL('/forbidden', nextUrl));
+  }
+  if (ogrenciRotasi && role !== 'STUDENT' && !(sonucSayfasi && role === 'TEACHER')) {
+    return NextResponse.rewrite(new URL('/forbidden', nextUrl));
   }
 
-  if (isLoggedIn) {
-    if (isTeacherRoute && req.auth?.user?.role !== "TEACHER") {
-      return NextResponse.redirect(new URL('/student', req.nextUrl));
-    }
-    if (isStudentRoute && req.auth?.user?.role !== "STUDENT") {
-      return NextResponse.redirect(new URL('/teacher', req.nextUrl));
-    }
+  // Giriş yapmış kullanıcı login/register sayfasına giderse paneline yönlendir
+  if (session && (pathname === '/login' || pathname === '/register')) {
+    const hedef = role === 'TEACHER' ? '/teacher' : '/student';
+    return NextResponse.redirect(new URL(hedef, nextUrl));
   }
 
-  return null;
+  return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ['/teacher/:path*', '/student/:path*', '/login', '/register'],
 };

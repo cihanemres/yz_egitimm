@@ -1,98 +1,198 @@
-import { prisma } from "@/utils/prisma";
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
-import Link from "next/link";
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { Role } from '@prisma/client';
 
-export default async function AttemptResultPage({ params }: { params: { id: string } }) {
-  const session = await auth();
-  
-  const attempt = await prisma.attempt.findUnique({
+import { prisma } from '@/lib/prisma';
+import { kullaniciGerekli } from '@/lib/yetki';
+import { puanBicimle, puanRengi, tarihBicimle } from '@/lib/bicim';
+
+export const metadata = { title: 'Test Sonucu — SözlüAI' };
+export const dynamic = 'force-dynamic';
+
+export default async function SonucSayfasi({ params }: { params: { id: string } }) {
+  const kullanici = await kullaniciGerekli();
+
+  const deneme = await prisma.attempt.findUnique({
     where: { id: params.id },
     include: {
-      exam: { include: { questions: true } },
-      student: true,
-      answers: { include: { question: true } }
-    }
+      student: { select: { id: true, name: true } },
+      exam: {
+        select: {
+          id: true,
+          title: true,
+          topic: true,
+          gradeLevel: true,
+          teacherId: true,
+          questions: { orderBy: { order: 'asc' } },
+        },
+      },
+      answers: true,
+    },
   });
 
-  if (!attempt) redirect("/");
+  if (!deneme) notFound();
 
-  // Both the student who took the exam and the teacher who created it can view it
-  const isOwner = attempt.studentId === session?.user?.id;
-  const isTeacher = session?.user?.role === "TEACHER" && attempt.exam.teacherId === session?.user?.id;
-  
-  if (!isOwner && !isTeacher) {
-    redirect("/");
-  }
+  // Yetki: öğrenci yalnızca kendi denemesini, öğretmen yalnızca kendi testinin
+  // denemelerini görebilir.
+  const ogrencininKendisi =
+    kullanici.role === Role.STUDENT && deneme.studentId === kullanici.id;
+  const testinOgretmeni =
+    kullanici.role === Role.TEACHER && deneme.exam.teacherId === kullanici.id;
 
-  const totalMaxScore = attempt.exam.questions.length * 100;
-  const backLink = isTeacher ? `/teacher/exams/${attempt.examId}` : "/student";
-  const backText = isTeacher ? "Sınava Dön" : "Sınavlara Dön";
+  if (!ogrencininKendisi && !testinOgretmeni) redirect('/forbidden');
+
+  const tamPuan = deneme.exam.questions.reduce((t, s) => t + s.maxScore, 0);
+  const toplamPuan = deneme.totalScore ?? 0;
+  const yuzde = tamPuan > 0 ? Math.round((toplamPuan / tamPuan) * 100) : 0;
+
+  // Yanıtları soru sırasına göre eşleştir.
+  const yanitHaritasi = new Map(deneme.answers.map((y) => [y.questionId, y]));
+
+  const geriLink = testinOgretmeni ? `/teacher/exams/${deneme.exam.id}` : '/student';
+  const geriMetin = testinOgretmeni ? '← Test detayı' : '← Panelim';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20 p-8 overflow-y-auto">
-      <Link href={backLink} className="text-indigo-600 hover:underline text-sm font-bold uppercase tracking-wider">&larr; {backText}</Link>
-      
-      <div className="bg-indigo-900 rounded-3xl p-8 text-white text-center shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
-        <h1 className="text-3xl font-bold">{attempt.exam.title} - Sonuçlar</h1>
-        <p className="text-indigo-200 mt-2 font-medium">{attempt.student.name}</p>
-        
-        <div className="mt-8 flex flex-col items-center justify-center">
-          <div className="w-32 h-32 rounded-full border-4 border-white/20 bg-white/10 flex items-center justify-center mb-4">
-            <span className="text-5xl font-black text-white">{attempt.totalScore}</span>
-          </div>
-          <span className="text-indigo-200 font-bold tracking-widest uppercase text-sm">Genel Başarı Puanı</span>
-        </div>
-        
-        <div className="mt-8 p-6 bg-white/10 border border-white/20 rounded-2xl text-left relative z-10 backdrop-blur-sm">
-          <h3 className="text-[10px] font-bold text-indigo-300 uppercase mb-3 tracking-widest">Yapay Zeka Genel Değerlendirmesi</h3>
-          <p className="text-indigo-50 leading-relaxed text-sm">{attempt.feedback || 'Genel değerlendirme bulunmuyor.'}</p>
-        </div>
+    <div className="space-y-5">
+      {/* Başlık */}
+      <div>
+        <Link href={geriLink} className="text-sm text-slate-500 hover:text-slate-700">
+          {geriMetin}
+        </Link>
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">{deneme.exam.title}</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {deneme.exam.topic} · {deneme.exam.gradeLevel} ·{' '}
+          {tarihBicimle(deneme.completedAt ?? deneme.startedAt)}
+        </p>
+        {testinOgretmeni && (
+          <p className="mt-1 text-sm font-medium text-slate-700">
+            Öğrenci: {deneme.student.name}
+          </p>
+        )}
       </div>
 
-      <div className="space-y-6">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Gemini AI Canlı Analiz Detayları</span>
+      {deneme.completedAt === null ? (
+        <div className="kart text-sm text-slate-600">
+          Bu deneme tamamlanmamış, bu nedenle sonuç bulunmuyor.
         </div>
-        
-        {attempt.answers.map((answer, i) => (
-          <div key={answer.id} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-6">
-              <div className="pr-8">
-                <span className="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold uppercase tracking-wider mb-3">SORU {i + 1}</span>
-                <p className="text-lg font-medium text-slate-900 leading-relaxed">{answer.question.text}</p>
-              </div>
-              <div className="flex flex-col items-end shrink-0">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex flex-col items-center justify-center border border-slate-200">
-                  <span className="text-2xl font-black text-indigo-600">{answer.score}</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase mt-2 tracking-widest">Puan</span>
-              </div>
-            </div>
+      ) : (
+        <>
+          {/* Soru bazında sonuçlar */}
+          <div className="space-y-4">
+            {deneme.exam.questions.map((soru) => {
+              const yanit = yanitHaritasi.get(soru.id);
+              const puan = yanit?.score ?? 0;
 
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Öğrencinin Yanıtı</h4>
-                <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 text-slate-700 italic">
-                  {answer.text || <span className="text-slate-400">Boş bırakılmış</span>}
-                </div>
-              </div>
+              return (
+                <div key={soru.id} className="kart">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="rozet shrink-0 bg-slate-100 text-slate-600">
+                      {soru.order}. Soru
+                    </span>
+                    <span className={`rozet shrink-0 ${puanRengi(puan, soru.maxScore)}`}>
+                      {puanBicimle(puan)} / {soru.maxScore}
+                    </span>
+                  </div>
 
-              <div>
-                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase mb-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
-                  Yapay Zeka Geri Bildirimi
+                  <p className="mt-3 text-base font-medium leading-relaxed text-slate-900">
+                    {soru.text}
+                  </p>
+
+                  {/* Verilen yanıt */}
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Verilen yanıt
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
+                      {yanit?.responseText?.trim() || (
+                        <span className="italic text-slate-400">Boş bırakılmış</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Geri bildirim */}
+                  {yanit?.feedback && (
+                    <div className="mt-4 rounded-lg border border-brand-100 bg-brand-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+                        Geri bildirim
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-brand-900/80">
+                        {yanit.feedback}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        Güçlü yönler
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-emerald-900/80">
+                        {yanit?.strengths?.trim() || '-'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                        Geliştirilecek yönler
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
+                        {yanit?.improvements?.trim() || '-'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-xl">
-                  <p className="text-indigo-900 text-sm leading-relaxed">{answer.feedback || 'Değerlendirme bulunmuyor.'}</p>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
+
+          {/* Toplam puan ve genel geri bildirim */}
+          <div className="kart">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Toplam puan
+                </p>
+                <p className="mt-1 text-3xl font-bold text-slate-900">
+                  {puanBicimle(toplamPuan)}{' '}
+                  <span className="text-lg font-medium text-slate-400">/ {tamPuan}</span>
+                </p>
+              </div>
+              <span className={`rozet px-3 py-1 text-sm ${puanRengi(toplamPuan, tamPuan)}`}>
+                %{yuzde}
+              </span>
+            </div>
+
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-brand-600"
+                style={{ width: `${Math.min(yuzde, 100)}%` }}
+              />
+            </div>
+
+            {deneme.overallFeedback && (
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Genel değerlendirme
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-700">
+                  {deneme.overallFeedback}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2 pb-4">
+            <Link href={geriLink} className="btn-ikincil">
+              {testinOgretmeni ? 'Test Detayına Dön' : 'Panele Dön'}
+            </Link>
+            {ogrencininKendisi && (
+              <Link href={`/student/exams/${deneme.exam.id}`} className="btn-birincil">
+                Testi Tekrar Çöz
+              </Link>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

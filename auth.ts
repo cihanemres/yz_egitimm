@@ -1,60 +1,46 @@
-import NextAuth, { DefaultSession } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import { prisma } from "@/utils/prisma";
+import NextAuth from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      role: string;
-    } & DefaultSession["user"];
-  }
-}
+import { authConfig } from '@/auth.config';
+import { prisma } from '@/lib/prisma';
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const girisSemasi = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
+      name: 'credentials',
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        email: { label: 'E-posta', type: 'email' },
+        password: { label: 'Şifre', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        
+        const parsed = girisSemasi.safeParse(credentials);
+        if (!parsed.success) return null;
+
+        const { email, password } = parsed.data;
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string }
+          where: { email: email.toLowerCase().trim() },
         });
-        
         if (!user) return null;
-        if (user.password !== credentials.password) return null; // In real app, use bcrypt
-        
+
+        const dogruMu = await bcrypt.compare(password, user.passwordHash);
+        if (!dogruMu) return null;
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
         };
-      }
-    })
+      },
+    }),
   ],
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-      }
-      return session;
-    }
-  },
-  pages: {
-    signIn: "/login",
-  },
-  session: { strategy: "jwt" },
 });

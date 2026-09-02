@@ -1,86 +1,108 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const passwordHash = await bcrypt.hash('123456', 10);
+const DEMO_SIFRE = '123456';
 
-  const teacher = await prisma.user.upsert({
+async function main() {
+  console.log('Seed başlıyor...');
+
+  const passwordHash = await bcrypt.hash(DEMO_SIFRE, 10);
+
+  // 1 öğretmen
+  const ogretmen = await prisma.user.upsert({
     where: { email: 'ogretmen@test.com' },
     update: {},
     create: {
+      name: 'Ayşe Öğretmen',
       email: 'ogretmen@test.com',
-      name: 'Öğretmen Ali',
       passwordHash,
-      role: 'TEACHER',
+      role: Role.TEACHER,
     },
   });
 
-  const student1 = await prisma.user.upsert({
+  // 2 öğrenci
+  await prisma.user.upsert({
     where: { email: 'ogrenci1@test.com' },
     update: {},
     create: {
+      name: 'Elif Yılmaz',
       email: 'ogrenci1@test.com',
-      name: 'Öğrenci Ayşe',
       passwordHash,
-      role: 'STUDENT',
+      role: Role.STUDENT,
     },
   });
 
-  const student2 = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'ogrenci2@test.com' },
     update: {},
     create: {
+      name: 'Mert Demir',
       email: 'ogrenci2@test.com',
-      name: 'Öğrenci Mehmet',
       passwordHash,
-      role: 'STUDENT',
+      role: Role.STUDENT,
     },
   });
 
-  const existingExam = await prisma.exam.findFirst({ where: { title: "Algoritma ve Problem Çözme" } });
-  
-  if (!existingExam) {
+  // Hazır test — daha önce eklenmişse tekrar ekleme
+  const mevcut = await prisma.exam.findFirst({
+    where: { title: 'Algoritma ve Problem Çözme', teacherId: ogretmen.id },
+  });
+
+  if (!mevcut) {
     await prisma.exam.create({
       data: {
-        title: "Algoritma ve Problem Çözme",
-        topic: "Algoritma",
-        gradeLevel: "6. Sınıf",
-        description: "Algoritma, değişkenler ve karar yapıları üzerine açık uçlu test.",
+        title: 'Algoritma ve Problem Çözme',
+        topic: 'Algoritma',
+        gradeLevel: '6. Sınıf',
+        description:
+          'Algoritma, akış şeması, değişken ve döngü kavramlarını ölçen açık uçlu değerlendirme testi.',
         isPublished: true,
-        teacherId: teacher.id,
+        teacherId: ogretmen.id,
         questions: {
           create: [
             {
-              text: "Algoritma nedir? Kendi cümlelerinle açıkla ve günlük hayattan bir örnek ver.",
-              rubric: "Algoritmanın 'bir problemi çözmek için izlenen sıralı adımlar' olduğu belirtilmeli (5 puan). Günlük hayattan uygun bir örnek verilmeli, örn. yemek tarifi, diş fırçalama (5 puan).",
+              order: 1,
               maxScore: 10,
-              order: 1
+              text: 'Algoritma nedir? Kendi cümlelerinle açıkla ve günlük hayattan bir örnek ver.',
+              rubric:
+                "Algoritmanın 'bir problemi çözmek için izlenen sıralı adımlar' olduğu belirtilmeli (5 puan). Günlük hayattan uygun bir örnek verilmeli, örn. yemek tarifi, diş fırçalama (5 puan).",
             },
             {
-              text: "Akış şemasında elmas (karar) sembolü ne işe yarar? Bir örnekle açıkla.",
-              rubric: "Karar sembolünün evet/hayır veya doğru/yanlış şeklinde dallanma sağladığı belirtilmeli (5 puan). Uygun bir örnek verilmeli, örn. 'Yağmur yağıyor mu?' (5 puan).",
+              order: 2,
               maxScore: 10,
-              order: 2
+              text: 'Akış şemasında elmas (karar) sembolü ne işe yarar? Bir örnekle açıkla.',
+              rubric:
+                "Karar sembolünün evet/hayır veya doğru/yanlış şeklinde dallanma sağladığı belirtilmeli (5 puan). Uygun bir örnek verilmeli, örn. 'Yağmur yağıyor mu?' (5 puan).",
             },
             {
+              order: 3,
+              maxScore: 10,
               text: "Bir programda 'değişken' ne demektir? Neden kullanırız?",
-              rubric: "Değişkenin veri saklayan, adı olan bir bellek alanı olduğu belirtilmeli (5 puan). Verinin değişebilmesi / tekrar kullanılabilmesi gibi bir kullanım gerekçesi verilmeli (5 puan).",
-              maxScore: 10,
-              order: 3
+              rubric:
+                'Değişkenin veri saklayan, adı olan bir bellek alanı olduğu belirtilmeli (5 puan). Verinin değişebilmesi / tekrar kullanılabilmesi gibi bir kullanım gerekçesi verilmeli (5 puan).',
             },
             {
-              text: "Döngü (tekrar) yapısı nedir? Hangi durumlarda kullanılır, bir örnek ver.",
-              rubric: "Döngünün bir işlem grubunu belirli koşula veya sayıya kadar tekrarlattığı belirtilmeli (5 puan). Uygun bir örnek verilmeli, örn. 1'den 10'a kadar sayma (5 puan).",
+              order: 4,
               maxScore: 10,
-              order: 4
-            }
-          ]
-        }
-      }
+              text: 'Döngü (tekrar) yapısı nedir? Hangi durumlarda kullanılır, bir örnek ver.',
+              rubric:
+                "Döngünün bir işlem grubunu belirli koşula veya sayıya kadar tekrarlattığı belirtilmeli (5 puan). Uygun bir örnek verilmeli, örn. 1'den 10'a kadar sayma (5 puan).",
+            },
+          ],
+        },
+      },
     });
+    console.log('Hazır test oluşturuldu: Algoritma ve Problem Çözme');
+  } else {
+    console.log('Hazır test zaten mevcut, atlandı.');
   }
+
+  console.log('Seed tamamlandı.');
+  console.log('  Öğretmen : ogretmen@test.com / 123456');
+  console.log('  Öğrenci 1: ogrenci1@test.com / 123456');
+  console.log('  Öğrenci 2: ogrenci2@test.com / 123456');
 }
 
 main()

@@ -1,42 +1,95 @@
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
-import Link from "next/link";
+import Link from 'next/link';
 
-export default async function TeacherDashboard() {
-  const session = await auth();
-  
-  const exams = await prisma.exam.findMany({
-    where: { teacherId: session?.user?.id },
+import { prisma } from '@/lib/prisma';
+import { ogretmenGerekli } from '@/lib/yetki';
+import { tarihBicimle } from '@/lib/bicim';
+import { yayinDurumunuDegistir } from './actions';
+
+export const metadata = { title: 'Öğretmen Paneli — SözlüAI' };
+export const dynamic = 'force-dynamic';
+
+export default async function OgretmenPaneli() {
+  const ogretmen = await ogretmenGerekli();
+
+  const testler = await prisma.exam.findMany({
+    where: { teacherId: ogretmen.id },
     orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { attempts: true } } }
+    include: {
+      _count: { select: { questions: true, attempts: true } },
+    },
   });
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex flex-col">
-        <h1 className="text-3xl font-bold text-slate-900 leading-tight">Sınavlarım</h1>
-        <p className="text-slate-500">Oluşturduğunuz tüm açık uçlu testler</p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Testlerim</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Oluşturduğunuz testleri yönetin ve öğrenci sonuçlarını inceleyin.
+          </p>
+        </div>
+        <Link href="/teacher/exams/new" className="btn-birincil">
+          + Yeni Test
+        </Link>
       </div>
 
-      {exams.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm flex flex-col items-center justify-center gap-4 py-16">
-          <p className="text-slate-500 text-lg">Henüz bir sınav oluşturmadınız.</p>
-          <Link href="/teacher/exams/new" className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">İlk testinizi oluşturun</Link>
+      {testler.length === 0 ? (
+        <div className="kart text-center">
+          <p className="text-sm text-slate-600">Henüz hiç testiniz yok.</p>
+          <Link href="/teacher/exams/new" className="btn-birincil mt-4">
+            İlk testinizi oluşturun
+          </Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {exams.map(exam => (
-            <Link key={exam.id} href={`/teacher/exams/${exam.id}`} className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all flex flex-col h-full">
-              <h2 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors leading-relaxed">{exam.title}</h2>
-              <p className="text-slate-500 text-sm mb-6 line-clamp-2 leading-relaxed flex-1">{exam.description || 'Açıklama yok'}</p>
-              
-              <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
-                <span className="text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full">{exam.gradeLevel}</span>
-                <span className="text-slate-400">{exam._count.attempts} Deneme</span>
+        <ul className="space-y-3">
+          {testler.map((test) => (
+            <li key={test.id} className="kart">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/teacher/exams/${test.id}`}
+                      className="text-base font-semibold text-slate-900 hover:text-brand-700 hover:underline"
+                    >
+                      {test.title}
+                    </Link>
+                    {test.isPublished ? (
+                      <span className="rozet bg-emerald-50 text-emerald-700">Yayında</span>
+                    ) : (
+                      <span className="rozet bg-slate-100 text-slate-600">Taslak</span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {test.topic} · {test.gradeLevel} · {test._count.questions} soru ·{' '}
+                    {test._count.attempts} deneme
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Oluşturulma: {tarihBicimle(test.createdAt)}
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <form action={yayinDurumunuDegistir}>
+                    <input type="hidden" name="examId" value={test.id} />
+                    <input type="hidden" name="publish" value={test.isPublished ? '0' : '1'} />
+                    <button
+                      type="submit"
+                      className={test.isPublished ? 'btn-ikincil' : 'btn-yesil'}
+                      disabled={!test.isPublished && test._count.questions === 0}
+                    >
+                      {test.isPublished ? 'Yayından Kaldır' : 'Yayınla'}
+                    </button>
+                  </form>
+
+                  <Link href={`/teacher/exams/${test.id}`} className="btn-ikincil">
+                    Detay
+                  </Link>
+                </div>
               </div>
-            </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
