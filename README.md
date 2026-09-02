@@ -49,15 +49,20 @@ cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
 `.env` dosyasını açıp değerleri doldurun (aşağıdaki tabloya bakın).
 
 ```bash
-# 3) Veritabanı şemasını oluştur (migration ile)
-npx prisma migrate dev --name init
+# 3) Tabloları oluştur ve hazır verileri yükle (tek komut)
+npm run db:setup
 
-# 4) Hazır verileri (öğretmen, öğrenciler ve örnek test) yükle
-npx prisma db seed
-
-# 5) Geliştirme sunucusunu başlat
+# 4) Geliştirme sunucusunu başlat
 npm run dev
 ```
+
+`npm run db:setup`, `prisma/migrations/` altındaki migration'ları uygular ve
+ardından seed'i çalıştırır. Bağlantı adresini `DATABASE_URL`, `POSTGRES_URL`
+veya `PRISMA_DATABASE_URL` değişkenlerinden ilk bulduğunda kullanır.
+
+> `npx prisma ...` komutları bozuk bir npx önbelleği yüzünden `P1001` verirse
+> `npx --no-install prisma ...` biçimini kullanın; bu, ağdan indirmek yerine
+> yerel `node_modules` içindeki Prisma'yı çalıştırır.
 
 Uygulama <http://localhost:3000> adresinde çalışır.
 
@@ -168,19 +173,23 @@ git push -u origin main
    - `GEMINI_API_KEY`
    - `AUTH_SECRET`
    - `AUTH_URL` → dağıtım adresiniz, örn. `https://sozlu-ai.vercel.app`
-3. Build komutu `package.json` içinde zaten `prisma generate && next build` olarak tanımlıdır; ayrıca bir şey yapmanız gerekmez.
+3. Build komutu `package.json` içinde tanımlıdır ve dağıtım sırasında
+   migration'ları uygulayıp seed'i çalıştırır:
+   `prisma generate && node scripts/setup-db.mjs && next build`
 4. **Deploy**'a basın.
 
-### İlk dağıtımdan sonra veritabanını hazırlama
+### Veritabanı hazırlığı
 
-Yerel makinenizden, `.env` içindeki `DATABASE_URL` üretim veritabanını gösterecek şekilde:
+Tablolar ve hazır veriler **her dağıtımda otomatik** kurulur
+(`scripts/setup-db.mjs`). Elle çalıştırmak isterseniz:
 
 ```bash
-npx prisma migrate deploy
-npx prisma db seed
+npm run db:setup
 ```
 
-> Vercel Postgres kullanıyorsanız bağlantı adresini proje panosundaki **Storage → .env.local** bölümünden alabilirsiniz.
+> **`AUTH_SECRET` zorunludur.** Tanımlı değilse NextAuth
+> `/api/auth/*` uçlarında "There was a problem with the server configuration"
+> döndürür; oturumun rolü okunamaz ve tüm panel sayfaları 403 verir.
 
 ---
 
