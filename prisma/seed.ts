@@ -4,11 +4,13 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 const DEMO_SIFRE = '123456';
+const TEST_SIFRE = 'test123';
 
 async function main() {
   console.log('Seed başlıyor...');
 
   const passwordHash = await bcrypt.hash(DEMO_SIFRE, 10);
+  const testHash = await bcrypt.hash(TEST_SIFRE, 10);
 
   // 1 öğretmen
   const ogretmen = await prisma.user.upsert({
@@ -42,6 +44,18 @@ async function main() {
       email: 'ogrenci2@test.com',
       passwordHash,
       role: Role.STUDENT,
+    },
+  });
+
+  // Hızlı deneme hesabı
+  await prisma.user.upsert({
+    where: { email: 'test@test.com' },
+    update: { passwordHash: testHash },
+    create: {
+      name: 'Test Kullanıcısı',
+      email: 'test@test.com',
+      passwordHash: testHash,
+      role: Role.TEACHER,
     },
   });
 
@@ -103,6 +117,7 @@ async function main() {
   console.log('  Öğretmen : ogretmen@test.com / 123456');
   console.log('  Öğrenci 1: ogrenci1@test.com / 123456');
   console.log('  Öğrenci 2: ogrenci2@test.com / 123456');
+  console.log('  Test     : test@test.com / test123 (öğretmen)');
 }
 
 main()

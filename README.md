@@ -97,6 +97,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 | Rol      | E-posta             | Şifre    |
 | -------- | ------------------- | -------- |
+| Öğretmen | test@test.com       | `test123` |
 | Öğretmen | ogretmen@test.com   | `123456` |
 | Öğrenci  | ogrenci1@test.com   | `123456` |
 | Öğrenci  | ogrenci2@test.com   | `123456` |

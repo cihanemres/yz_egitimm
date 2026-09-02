@@ -29,6 +29,7 @@ export default function GirisSayfasi() {
         <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-600">
           <p className="mb-2 font-medium text-slate-700">Demo hesapları</p>
           <ul className="space-y-1">
+            <li>Test (öğretmen): test@test.com / test123</li>
             <li>Öğretmen: ogretmen@test.com / 123456</li>
             <li>Öğrenci: ogrenci1@test.com / 123456</li>
             <li>Öğrenci: ogrenci2@test.com / 123456</li>

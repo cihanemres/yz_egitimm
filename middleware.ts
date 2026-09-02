@@ -15,6 +15,16 @@ export default auth((req) => {
   const ogrenciRotasi = pathname.startsWith('/student');
   const korumaliRota = ogretmenRotasi || ogrenciRotasi;
 
+  // Oturum var ama rol okunamıyorsa token geçersizdir (örn. AUTH_SECRET
+  // eksik veya değişmiş). Kullanıcıyı 403 çıkmazında bırakmak yerine
+  // yeniden giriş yapmaya gönder.
+  if (session && !role) {
+    if (pathname === '/login' || pathname === '/register') {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL('/login', nextUrl));
+  }
+
   // Giriş yapmamış kullanıcı korumalı rotaya erişemez
   if (korumaliRota && !session) {
     const girisUrl = new URL('/login', nextUrl);

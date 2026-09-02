@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { auth } from '@/auth';
+import { auth, signOut } from '@/auth';
 
 export const metadata = { title: 'Erişim Reddedildi — SözlüAI' };
 
@@ -23,13 +23,25 @@ export default async function YasakSayfasi() {
               : 'yetkili kullanıcılar'}{' '}
           içindir. Hesabınızın rolü bu sayfayı görüntülemeye uygun değil.
         </p>
-        <div className="mt-5 flex justify-center gap-2">
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
           <Link href={panelLinki} className="btn-birincil">
             Kendi Panelime Git
           </Link>
           <Link href="/" className="btn-ikincil">
             Ana Sayfa
           </Link>
+          {session?.user && (
+            <form
+              action={async () => {
+                'use server';
+                await signOut({ redirectTo: '/login' });
+              }}
+            >
+              <button type="submit" className="btn-ikincil">
+                Çıkış Yap
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>
