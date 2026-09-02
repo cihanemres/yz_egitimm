@@ -2,7 +2,9 @@ import 'server-only';
 
 import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 
-const MODEL_ADI = 'gemini-2.5-flash';
+// Google, gemini-2.5-flash'i yeni API anahtarlarına kapattı (çağrı 404 döner).
+// Gerekirse GEMINI_MODEL ile değiştirilebilir, örn. gemini-flash-latest.
+const MODEL_ADI = process.env.GEMINI_MODEL ?? 'gemini-3.6-flash';
 
 const SISTEM_YONERGESI =
   'Sen bir Bilişim Teknolojileri ve Yazılım öğretmenisin. Ortaokul öğrencilerine Türkçe, teşvik edici ve somut geri bildirim verirsin. Yalnızca geçerli JSON döndür.';

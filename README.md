@@ -14,7 +14,7 @@
 | Arayüz           | Tailwind CSS                                     |
 | Veritabanı       | PostgreSQL + Prisma ORM                          |
 | Kimlik doğrulama | NextAuth.js v5 (Auth.js), Credentials + bcryptjs |
-| Yapay zeka       | Google Gemini (`gemini-2.5-flash`)               |
+| Yapay zeka       | Google Gemini (`gemini-3.6-flash`)               |
 | Dağıtım          | Vercel                                           |
 
 ---
@@ -201,7 +201,9 @@ npm run db:setup
 | `evaluateAnswer(q, rubric, max, resp)` | Tek bir yanıtı rubriğe göre puanlar; `score`, `feedback`, `strengths`, `improvements`  |
 | `generateOverallFeedback(answers)`     | Tüm yanıtlara bakarak 3-4 cümlelik genel değerlendirme yazar                           |
 
-- Model: `gemini-2.5-flash`, `responseMimeType: "application/json"` ile katı JSON çıktısı.
+- Model: `gemini-3.6-flash`, `responseMimeType: "application/json"` ile katı JSON çıktısı.
+  (Google `gemini-2.5-flash`’i yeni anahtarlara kapattı. Başka bir model kullanmak için
+  `GEMINI_MODEL` ortam değişkenini tanımlayın, örn. `gemini-flash-latest`.)
 - Sistem yönergesi: *"Sen bir Bilişim Teknolojileri ve Yazılım öğretmenisin. Ortaokul öğrencilerine Türkçe, teşvik edici ve somut geri bildirim verirsin. Yalnızca geçerli JSON döndür."*
 - Testteki tüm sorular `Promise.all` ile **paralel** değerlendirilir.
 - Başarısız istek **1 kez** yeniden denenir; yine başarısızsa kullanıcıya anlaşılır bir Türkçe hata mesajı gösterilir ve yarım kalan deneme kaydı silinir.
