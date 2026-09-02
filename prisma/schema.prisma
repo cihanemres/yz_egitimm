@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdExams Exam[]    @relation("TeacherExams")
+  attempts     Attempt[] @relation("StudentAttempts")
+}
+
+enum Role {
+  TEACHER
+  STUDENT
+}
+
+model Exam {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  topic       String
+  gradeLevel  String
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  teacherId   String
+  teacher     User     @relation("TeacherExams", fields: [teacherId], references: [id])
+  
+  questions   Question[]
+  attempts    Attempt[]
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  text      String
+  rubric    String?  // AI tarafindan uretilen veya ogretmen tarafindan yazilan rubrik (degerlendirme kriterleri)
+  order     Int      @default(0)
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  
+  answers   Answer[]
+}
+
+model Attempt {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     User      @relation("StudentAttempts", fields: [studentId], references: [id])
+  examId      String
+  exam        Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  totalScore  Int?
+  feedback    String?   // Genel AI geri bildirimi
+  
+  answers     Answer[]
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  text       String
+  score      Int?     // Soru bazli puan
+  feedback   String?  // Soru bazli AI geri bildirimi
+  
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attemptId  String
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
